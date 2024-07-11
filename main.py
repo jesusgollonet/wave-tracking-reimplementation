@@ -31,12 +31,20 @@ cv.moveWindow(win2, 0, 390)
 - Background modeling using MOG over 300 frames
 """
 backSub = cv.createBackgroundSubtractorMOG2(
-    history=300, varThreshold=150, detectShadows=False
+    history=300, varThreshold=100, detectShadows=False
 )
 
 while 1:
     ret, frame = cap.read()
+    if not ret:
+        break
+    # bg subtraction
     fgMask = backSub.apply(frame)
+    # remove noise by opening
+
+    opening = cv.morphologyEx(
+        fgMask, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3))
+    )
     # show frame number
     cv.putText(
         fgMask,
@@ -48,7 +56,7 @@ while 1:
         2,
     )
     cv.imshow(win1, frame)
-    cv.imshow(win2, fgMask)
+    cv.imshow(win2, opening)
     if cv.waitKey(30) & 0xFF == ord("q"):
         break
 
