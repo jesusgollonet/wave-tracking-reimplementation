@@ -31,7 +31,7 @@ cv.moveWindow(win2, 0, 390)
 - Background modeling using MOG over 300 frames
 """
 backSub = cv.createBackgroundSubtractorMOG2(
-    history=300, varThreshold=16, detectShadows=False
+    history=300, varThreshold=150, detectShadows=False
 )
 
 while 1:
