@@ -23,6 +23,7 @@ win1 = "frame"
 win2 = "bg"
 cv.namedWindow(win1)
 cv.namedWindow(win2)
+cv.moveWindow(win1, 0, 0)
 cv.moveWindow(win2, 0, 390)
 
 
@@ -30,8 +31,8 @@ cv.moveWindow(win2, 0, 390)
 1. Preprocessing
 - Background modeling using MOG over 300 frames
 """
-backSub = cv.createBackgroundSubtractorMOG2(
-    history=300, varThreshold=100, detectShadows=False
+backSub = cv.createBackgroundSubtractorKNN(
+    # history=300, varThreshold=100, detectShadows=False
 )
 
 while 1:
@@ -42,10 +43,13 @@ while 1:
     fgMask = backSub.apply(frame)
     # remove noise by opening
 
-    opening = cv.morphologyEx(
-        fgMask, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3))
+    kernel_size = 3
+    structuring_element = cv.getStructuringElement(
+        cv.MORPH_RECT, (kernel_size, kernel_size)
     )
-    # show frame number
+    opening = cv.morphologyEx(fgMask, cv.MORPH_OPEN, structuring_element, iterations=2)
+    contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    cv.drawContours(frame, contours[0], -1, (255, 255, 0), 2)
     cv.putText(
         fgMask,
         str(int(cap.get(cv.CAP_PROP_POS_FRAMES))),
