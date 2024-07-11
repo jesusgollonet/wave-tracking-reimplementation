@@ -13,3 +13,14 @@ Pipeline consists of 4 steps
 4. Object recognition/classification
 
 """
+
+import cv2 as cv
+
+cap = cv.VideoCapture("video/fuengirola.mp4")
+
+ret, frame = cap.read()
+cv.imshow("frame", frame)
+
+cv.waitKey(0)
+cap.release()
+cv.destroyAllWindows()
