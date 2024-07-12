@@ -32,7 +32,7 @@ cv.moveWindow(win2, 0, 390)
 - Background modeling using MOG over 300 frames
 """
 backSub = cv.createBackgroundSubtractorKNN(
-    # history=300, varThreshold=100, detectShadows=False
+    history=300, dist2Threshold=400, detectShadows=False
 )
 
 while 1:
@@ -42,14 +42,16 @@ while 1:
     # bg subtraction
     fgMask = backSub.apply(frame)
     # remove noise by opening
-
-    kernel_size = 3
+    kernel_size = 5
     structuring_element = cv.getStructuringElement(
         cv.MORPH_RECT, (kernel_size, kernel_size)
     )
-    opening = cv.morphologyEx(fgMask, cv.MORPH_OPEN, structuring_element, iterations=2)
+    opening = cv.morphologyEx(fgMask, cv.MORPH_OPEN, structuring_element, iterations=1)
     contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-    cv.drawContours(frame, contours[0], -1, (255, 255, 0), 2)
+    # filter contours by area
+    if len(contours) > 0:
+        filtered_contours = [c for c in contours[0] if cv.contourArea(c) > 100]
+        cv.drawContours(frame, filtered_contours, -1, (255, 255, 0), 2)
     cv.putText(
         fgMask,
         str(int(cap.get(cv.CAP_PROP_POS_FRAMES))),
