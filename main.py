@@ -51,7 +51,12 @@ while 1:
     # filter contours by area
     if len(contours) > 0:
         filtered_contours = [c for c in contours[0] if cv.contourArea(c) > 100]
-        cv.drawContours(frame, filtered_contours, -1, (255, 255, 0), 2)
+        for c in filtered_contours:
+            rect = cv.minAreaRect(c)
+            box = cv.boxPoints(rect)
+            box = box.astype(int)
+            cv.drawContours(frame, [box], -1, (0, 255, 0), 2)
+            # cv.drawContours(frame, [c], -1, (0, 255, 0), 2)
     cv.putText(
         fgMask,
         str(int(cap.get(cv.CAP_PROP_POS_FRAMES))),
