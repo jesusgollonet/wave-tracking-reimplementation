@@ -15,8 +15,9 @@ Pipeline consists of 4 steps
 """
 
 import cv2 as cv
+import numpy as np
 
-cap = cv.VideoCapture("video/fuengirola.mp4")
+cap = cv.VideoCapture("video/nerja.mp4")
 # cap = cv.VideoCapture("video/original/scene2.mp4")
 
 win1 = "frame"
@@ -47,16 +48,35 @@ while 1:
         cv.MORPH_RECT, (kernel_size, kernel_size)
     )
     opening = cv.morphologyEx(fgMask, cv.MORPH_OPEN, structuring_element, iterations=1)
+    """
+    2.Detection 
+    find the contours, filter them by area and draw boudning box
+    """
     contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     # filter contours by area
+    cols, rows = frame.shape[:2]
     if len(contours) > 0:
         filtered_contours = [c for c in contours[0] if cv.contourArea(c) > 100]
         for c in filtered_contours:
+            x, y, vx, vy = cv.fitLine(c, cv.DIST_L2, 0, 0.01, 0.01)
+
+            vx = vx[0]
+            vy = vy[0]
+            x = x[0]
+            y = y[0]
+            cv.line(
+                frame,
+                (int(x * 100 + vx), int(y * 100 + vy)),
+                (int(-x * 100 + vx), int(-y * 100 + vy)),
+                (0, 255, 255),
+                1,
+            )
+
             rect = cv.minAreaRect(c)
             box = cv.boxPoints(rect)
             box = box.astype(int)
-            cv.drawContours(frame, [box], -1, (0, 255, 0), 2)
             # cv.drawContours(frame, [c], -1, (0, 255, 0), 2)
+            cv.drawContours(frame, [c], -1, (0, 255, 0), 1)
     cv.putText(
         fgMask,
         str(int(cap.get(cv.CAP_PROP_POS_FRAMES))),
