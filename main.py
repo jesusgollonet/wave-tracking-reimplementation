@@ -18,7 +18,6 @@ import cv2 as cv
 import numpy as np
 
 cap = cv.VideoCapture("video/nerja.mp4")
-# cap = cv.VideoCapture("video/original/scene2.mp4")
 
 win1 = "frame"
 win2 = "bg"
@@ -58,20 +57,6 @@ while 1:
     if len(contours) > 0:
         filtered_contours = [c for c in contours[0] if cv.contourArea(c) > 100]
         for c in filtered_contours:
-            x, y, vx, vy = cv.fitLine(c, cv.DIST_L2, 0, 0.01, 0.01)
-
-            vx = vx[0]
-            vy = vy[0]
-            x = x[0]
-            y = y[0]
-            cv.line(
-                frame,
-                (int(x * 100 + vx), int(y * 100 + vy)),
-                (int(-x * 100 + vx), int(-y * 100 + vy)),
-                (0, 255, 255),
-                1,
-            )
-
             rect = cv.minAreaRect(c)
             box = cv.boxPoints(rect)
             box = box.astype(int)
