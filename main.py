@@ -14,6 +14,7 @@ Pipeline consists of 4 steps
 
 """
 
+from dataclasses import dataclass
 import cv2 as cv
 import numpy as np
 import math
@@ -35,6 +36,78 @@ cv.moveWindow(win2, 0, 390)
 backSub = cv.createBackgroundSubtractorKNN(
     history=300, dist2Threshold=400, detectShadows=False
 )
+
+
+@dataclass
+class PossibleWave:
+    contour: np.ndarray
+    rect: np.ndarray
+    box: np.ndarray
+    area: float
+    inertia_ratio: float
+
+    def __init__(self, contour, rect, box, area, inertia_ratio):
+        self.contour = contour
+        self.rect = rect
+        self.box = box
+        self.area = area
+        self.inertia_ratio = inertia_ratio
+
+    def draw(self, frame):
+        # Draw the contour
+        cv.drawContours(frame, [self.contour], -1, (0, 255, 0), 1)
+
+        # Ensure text positions are within the frame bounds
+        x, y = int(self.box[0][0]), int(self.box[0][1])
+        text_area = f"area: {self.area:.2f}"
+        text_inertia = f"inertia_ratio: {self.inertia_ratio:.2f}"
+
+        # Define font properties
+        font = cv.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        color = (0, 255, 0)
+        thickness = 1
+
+        # Get text size for bounding box
+        text_size, _ = cv.getTextSize(text_area, font, font_scale, thickness)
+
+        # Draw the area text
+        cv.putText(frame, text_area, (x, y), font, font_scale, color, thickness)
+
+        # Draw the inertia ratio text
+        cv.putText(
+            frame,
+            text_inertia,
+            (x, y + text_size[1] + 5),
+            font,
+            font_scale,
+            color,
+            thickness,
+        )
+
+    def __repr__(self):
+        return f"PossibleWave(area={self.area}, inertia_ratio={self.inertia_ratio})"
+
+    def __str__(self):
+        return f"PossibleWave(area={self.area}, inertia_ratio={self.inertia_ratio})"
+
+    def __lt__(self, other):
+        return self.area < other.area
+
+    def __eq__(self, other):
+        return self.area == other.area
+
+    def __gt__(self, other):
+        return self.area > other.area
+
+    def __le__(self, other):
+        return self.area <= other.area
+
+    def __ge__(self, other):
+        return self.area >= other.area
+
+    def __ne__(self, other):
+        return self.area != other.area
 
 
 def calculate_inertia_ratio(moments):
@@ -75,6 +148,7 @@ while 1:
     ret, frame = cap.read()
     if not ret:
         break
+
     # bg subtraction
     fgMask = backSub.apply(frame)
     # remove noise by opening
@@ -88,21 +162,30 @@ while 1:
     find the contours, filter them by area and draw boudning box
     """
     contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-    # filter contours by arej
+    # filter contours by area and inertia ratio (elongation)
     cols, rows = frame.shape[:2]
     if len(contours) > 0:
         filtered_contours = [
             c
             for c in contours[0]
-            if cv.contourArea(c) > 300
-            and cv.contourArea(c) < 3000
-            and calculate_inertia_ratio(cv.moments(c)) < 0.1
+            if cv.contourArea(c) > 200
+            and cv.contourArea(c) < 1000
+            and calculate_inertia_ratio(cv.moments(c)) < 0.01
         ]
+
         for c in filtered_contours:
-            rect = cv.minAreaRect(c)
-            box = cv.boxPoints(rect)
-            box = box.astype(int)
-            cv.drawContours(frame, [c], -1, (0, 255, 0), 1)
+            wave = PossibleWave(
+                c,
+                cv.minAreaRect(c),
+                cv.boxPoints(cv.minAreaRect(c)),
+                cv.contourArea(c),
+                calculate_inertia_ratio(cv.moments(c)),
+            )
+            wave.draw(frame)
+            # rect = cv.minAreaRect(c)
+            # box = cv.boxPoints(rect)
+            # box = box.astype(int)
+            # cv.drawContours(frame, [c], -1, (0, 255, 0), 1)
 
     cv.putText(
         fgMask,
