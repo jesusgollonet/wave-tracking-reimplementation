@@ -95,8 +95,8 @@ while 1:
             c
             for c in contours[0]
             if cv.contourArea(c) > 300
-            and cv.contourArea(c) < 1000
-            and calculate_inertia_ratio(cv.moments(c)) < 0.01
+            and cv.contourArea(c) < 3000
+            and calculate_inertia_ratio(cv.moments(c)) < 0.1
         ]
         for c in filtered_contours:
             rect = cv.minAreaRect(c)
