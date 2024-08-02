@@ -16,8 +16,9 @@ Pipeline consists of 4 steps
 
 import cv2 as cv
 import numpy as np
+import math
 
-cap = cv.VideoCapture("video/nerja.mp4")
+cap = cv.VideoCapture("video/fuen2.mov")
 
 win1 = "frame"
 win2 = "bg"
@@ -34,6 +35,41 @@ cv.moveWindow(win2, 0, 390)
 backSub = cv.createBackgroundSubtractorKNN(
     history=300, dist2Threshold=400, detectShadows=False
 )
+
+
+def calculate_inertia_ratio(moments):
+    # Calculate the denominator using the correct normalization
+    denominator = math.sqrt(
+        (2 * moments["m11"]) ** 2 + (moments["m20"] - moments["m02"]) ** 2
+    )
+
+    # Small epsilon to avoid division by zero
+    epsilon = 0.01
+    if denominator < epsilon:
+        return 0.0  # handle division by zero or near-zero
+
+    # Calculate the sin and cos of the angle
+    cosmin = (moments["m20"] - moments["m02"]) / denominator
+    sinmin = 2 * moments["m11"] / denominator
+    cosmax = -cosmin
+    sinmax = -sinmin
+
+    # Calculate the minimum and maximum inertia
+    imin = (
+        0.5 * (moments["m20"] + moments["m02"])
+        - 0.5 * (moments["m20"] - moments["m02"]) * cosmin
+        - moments["m11"] * sinmin
+    )
+
+    imax = (
+        0.5 * (moments["m20"] + moments["m02"])
+        - 0.5 * (moments["m20"] - moments["m02"]) * cosmax
+        - moments["m11"] * sinmax
+    )
+
+    ratio = imin / imax
+    return ratio
+
 
 while 1:
     ret, frame = cap.read()
@@ -52,16 +88,22 @@ while 1:
     find the contours, filter them by area and draw boudning box
     """
     contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-    # filter contours by area
+    # filter contours by arej
     cols, rows = frame.shape[:2]
     if len(contours) > 0:
-        filtered_contours = [c for c in contours[0] if cv.contourArea(c) > 100]
+        filtered_contours = [
+            c
+            for c in contours[0]
+            if cv.contourArea(c) > 300
+            and cv.contourArea(c) < 1000
+            and calculate_inertia_ratio(cv.moments(c)) < 0.01
+        ]
         for c in filtered_contours:
             rect = cv.minAreaRect(c)
             box = cv.boxPoints(rect)
             box = box.astype(int)
-            # cv.drawContours(frame, [c], -1, (0, 255, 0), 2)
             cv.drawContours(frame, [c], -1, (0, 255, 0), 1)
+
     cv.putText(
         fgMask,
         str(int(cap.get(cv.CAP_PROP_POS_FRAMES))),
