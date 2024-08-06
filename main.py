@@ -14,10 +14,9 @@ Pipeline consists of 4 steps
 
 """
 
-from dataclasses import dataclass
+from wavetracker.utils import calculate_inertia_ratio
 import cv2 as cv
-import numpy as np
-import math
+
 
 cap = cv.VideoCapture("video/fuen2.mov")
 
@@ -31,121 +30,18 @@ cv.moveWindow(win2, 0, 390)
 
 """
 1. Preprocessing
-- Background modeling using MOG over 300 frames
+- Background modeling using KNN over 300 frames
 """
 backSub = cv.createBackgroundSubtractorKNN(
     history=300, dist2Threshold=400, detectShadows=False
 )
 
 
-@dataclass
-class PossibleWave:
-    contour: np.ndarray
-    rect: np.ndarray
-    box: np.ndarray
-    area: float
-    inertia_ratio: float
-
-    def __init__(self, contour, rect, box, area, inertia_ratio):
-        self.contour = contour
-        self.rect = rect
-        self.box = box
-        self.area = area
-        self.inertia_ratio = inertia_ratio
-
-    def draw(self, frame):
-        # Draw the contour
-        cv.drawContours(frame, [self.contour], -1, (0, 255, 0), 1)
-
-        # Ensure text positions are within the frame bounds
-        x, y = int(self.box[0][0]), int(self.box[0][1])
-        text_area = f"area: {self.area:.2f}"
-        text_inertia = f"inertia_ratio: {self.inertia_ratio:.2f}"
-
-        # Define font properties
-        font = cv.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.5
-        color = (0, 255, 0)
-        thickness = 1
-
-        # Get text size for bounding box
-        text_size, _ = cv.getTextSize(text_area, font, font_scale, thickness)
-
-        # Draw the area text
-        cv.putText(frame, text_area, (x, y), font, font_scale, color, thickness)
-
-        # Draw the inertia ratio text
-        cv.putText(
-            frame,
-            text_inertia,
-            (x, y + text_size[1] + 5),
-            font,
-            font_scale,
-            color,
-            thickness,
-        )
-
-    def __repr__(self):
-        return f"PossibleWave(area={self.area}, inertia_ratio={self.inertia_ratio})"
-
-    def __str__(self):
-        return f"PossibleWave(area={self.area}, inertia_ratio={self.inertia_ratio})"
-
-    def __lt__(self, other):
-        return self.area < other.area
-
-    def __eq__(self, other):
-        return self.area == other.area
-
-    def __gt__(self, other):
-        return self.area > other.area
-
-    def __le__(self, other):
-        return self.area <= other.area
-
-    def __ge__(self, other):
-        return self.area >= other.area
-
-    def __ne__(self, other):
-        return self.area != other.area
-
-
-def calculate_inertia_ratio(moments):
-    # Calculate the denominator using the correct normalization
-    denominator = math.sqrt(
-        (2 * moments["m11"]) ** 2 + (moments["m20"] - moments["m02"]) ** 2
-    )
-
-    # Small epsilon to avoid division by zero
-    epsilon = 0.01
-    if denominator < epsilon:
-        return 0.0  # handle division by zero or near-zero
-
-    # Calculate the sin and cos of the angle
-    cosmin = (moments["m20"] - moments["m02"]) / denominator
-    sinmin = 2 * moments["m11"] / denominator
-    cosmax = -cosmin
-    sinmax = -sinmin
-
-    # Calculate the minimum and maximum inertia
-    imin = (
-        0.5 * (moments["m20"] + moments["m02"])
-        - 0.5 * (moments["m20"] - moments["m02"]) * cosmin
-        - moments["m11"] * sinmin
-    )
-
-    imax = (
-        0.5 * (moments["m20"] + moments["m02"])
-        - 0.5 * (moments["m20"] - moments["m02"]) * cosmax
-        - moments["m11"] * sinmax
-    )
-
-    ratio = imin / imax
-    return ratio
-
+tracked_waves = []
 
 while 1:
     ret, frame = cap.read()
+
     if not ret:
         break
 
@@ -164,42 +60,41 @@ while 1:
     contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     # filter contours by area and inertia ratio (elongation)
     cols, rows = frame.shape[:2]
-    if len(contours) > 0:
-        filtered_contours = [
-            c
-            for c in contours[0]
-            if cv.contourArea(c) > 200
-            and cv.contourArea(c) < 1000
-            and calculate_inertia_ratio(cv.moments(c)) < 0.01
-        ]
+    filtered_contours = [
+        c
+        for c in contours[0]
+        if cv.contourArea(c) > 40
+        and cv.contourArea(c) < 2000
+        and calculate_inertia_ratio(cv.moments(c)) < 0.0001
+    ]
+    for c in filtered_contours:
+        rect = cv.minAreaRect(c)
+        box = cv.boxPoints(rect)
+        area = cv.contourArea(c)
+        inertia_ratio = calculate_inertia_ratio(cv.moments(c))
+        moments = cv.moments(c)
+        x = int(moments["m10"] / moments["m00"])
+        y = int(moments["m01"] / moments["m00"])
+        for tw in tracked_waves:
+            if cv.pointPolygonTest(tw.contour, (x, y), False) == 1:
+                tw.area = area
+                tw.inertia_ratio = inertia_ratio
+                tw.box = box
+                tw.rect = rect
+                tw.contour = c
+                break
+            tw.area = area
+            tw.inertia_ratio = inertia_ratio
+            tw.box = box
+            tw.rect = rect
+            tw.contour = c
+            break
 
-        for c in filtered_contours:
-            wave = PossibleWave(
-                c,
-                cv.minAreaRect(c),
-                cv.boxPoints(cv.minAreaRect(c)),
-                cv.contourArea(c),
-                calculate_inertia_ratio(cv.moments(c)),
-            )
-            wave.draw(frame)
-            # rect = cv.minAreaRect(c)
-            # box = cv.boxPoints(rect)
-            # box = box.astype(int)
-            # cv.drawContours(frame, [c], -1, (0, 255, 0), 1)
-
-    cv.putText(
-        fgMask,
-        str(int(cap.get(cv.CAP_PROP_POS_FRAMES))),
-        (10, 30),
-        cv.FONT_HERSHEY_SIMPLEX,
-        1,
-        (255, 255, 0),
-        2,
-    )
     cv.imshow(win1, frame)
     cv.imshow(win2, opening)
     if cv.waitKey(30) & 0xFF == ord("q"):
         break
+
 
 cap.release()
 cv.destroyAllWindows()
