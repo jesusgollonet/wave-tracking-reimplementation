@@ -15,6 +15,7 @@ Pipeline consists of 4 steps
 """
 
 from wavetracker.utils import calculate_inertia_ratio
+from wavetracker.preprocessor import Preprocessor
 import cv2 as cv
 
 
@@ -32,10 +33,7 @@ cv.moveWindow(win2, 0, 390)
 1. Preprocessing
 - Background modeling using KNN over 300 frames
 """
-backSub = cv.createBackgroundSubtractorKNN(
-    history=300, dist2Threshold=400, detectShadows=False
-)
-
+preprocessor = Preprocessor()
 
 tracked_waves = []
 
@@ -45,19 +43,15 @@ while 1:
     if not ret:
         break
 
-    # bg subtraction
-    fgMask = backSub.apply(frame)
-    # remove noise by opening
-    kernel_size = 5
-    structuring_element = cv.getStructuringElement(
-        cv.MORPH_RECT, (kernel_size, kernel_size)
-    )
-    opening = cv.morphologyEx(fgMask, cv.MORPH_OPEN, structuring_element, iterations=1)
+    preprocessed_frame = preprocessor.update(frame)
+
     """
     2.Detection 
     find the contours, filter them by area and draw boudning box
     """
-    contours = cv.findContours(opening, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    contours = cv.findContours(
+        preprocessed_frame, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
+    )
     # filter contours by area and inertia ratio (elongation)
     cols, rows = frame.shape[:2]
     filtered_contours = [
@@ -91,7 +85,7 @@ while 1:
             break
 
     cv.imshow(win1, frame)
-    cv.imshow(win2, opening)
+    cv.imshow(win2, preprocessed_frame)
     if cv.waitKey(30) & 0xFF == ord("q"):
         break
 
